@@ -1,0 +1,22 @@
+{
+    "wavesCountDown": 600,
+    "waves": [
+        {"arrow": 5},
+        {"arrow": 21},
+        {"arrow": 69},
+        {"arrow": 123},
+        {"arrow": 345},
+        {"arrow": 1463},
+        {"arrow": 2137},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999},
+        {"arrow": 9999}
+    ]
+}

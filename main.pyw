@@ -1,38 +1,62 @@
-import pygame, sys, random
+import pygame, sys, random, json
 from pygame.math import Vector2
 
 pygame.init()
 clock = pygame.time.Clock()
-
-res = (1920, 1080)
-screen = pygame.display.set_mode(res)
-pygame.display.set_caption("Arm Park 1.4.1")
+gameConfig = json.loads(open("config.json").read())
+screen = pygame.display.set_mode(gameConfig["res"])
+res = pygame.display.get_window_size()
+pygame.display.set_caption("Arm Park 1.5.c")
 pygame.mixer.init()
 
+# def getWave(no, seed):
+# 	e1, e2, e3, e4 = 0, 0, 0, 0
+
+# 	if seed % 2 == 0 or seed % 3 == 0:
+# 		e1 += no * 3
+# 	if seed % 5 == 0 and no > 10:
+# 		e4 += (no - 5) * 3
+
+# 	return e1, e2, e3, e4
+
+def wave():
+	global emmys, waves, gameConfig, waveno
+	for i in range(waves["waves"][waveno]["arrow"]): emmys.append(EArrow(res[0], random.randint(0, res[1])))
+
 def setpvp():
-	global mode, bullets, loser, tick, wait_tick
+	global mode, bullets, loser, tick, wait_tick, wins
+	wins = {"Green" : 0, "Blue" : 0} # I've replaced the values bc its wins not loses & I'm using loser var
 	mode = 'pvp'
 	setPlayers()
 	bullets = []
 	loser = ''
 	tick = 0
-	wait_tick = -301
+	wait_tick = 0
 
 def setmenu():
-	global mode, bullets, loser, tick, c
+	global mode, bullets, loser, tick
 	mode = 'menu'
+	loser = ''
+	tick = 0
+
+def setsurvival():
+	global mode, bullets, loser, tick, emmys, waves, waveno
+	mode = 'survival'
 	bullets = []
 	loser = ''
 	tick = 0
-	c = (0, 0, 0)
+	waveno = 0
+	setPlayers(_2=False)
+	waves = json.loads(open(gameConfig["wavesFile"]).read())
+	emmys = []
 
 
-def setPlayers():
+def setPlayers(_1=True, _2=True):
 	global p1, p2
 	ammo = 300
 	missles = 10
-	p1 = Player(res[0]/8, res[1]/2, (160, 255, 160), "green", [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d], [ammo, 0, 0], missles)
-	p2 = Player(res[0] - res[0]/8, res[1]/2, (160, 160, 255), "blue", [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT], [ammo, res[0]-30, 0], missles)
+	if _1: p1 = Player(res[0]/8, res[1]/2, (160, 255, 160), "green", [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d], [ammo, 0, 0], missles)
+	if _2: p2 = Player(res[0] - res[0]/8, res[1]/2, (160, 160, 255), "blue", [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT], [ammo, res[0]-30, 0], missles)
 
 def getLoser(players):
 	for p in players:
@@ -43,24 +67,26 @@ def getLoser(players):
 				return 'blue'
 
 def reset():
-	global p1, p2, loser, tick, bullets, wait_tick
+	global p1, p2, loser, tick, bullets, wait_tick, wins
+	wins[loser] += 1
 	bullets = []
 	setPlayers()
 	loser = ''
 	tick = 0
 	wait_tick = -301
 
-def writeText(text, x, y, size, color=(200, 200, 120)):
-	font = pygame.font.SysFont("Consolas", size)
+def writeText(text, x, y, size, color=(255, 255, 255), font="Consolas"):
+	font = pygame.font.SysFont(font, size)
 	render = font.render(text, True, color)
 	screen.blit(render, (x, y))
 
-def getText(text, size, color=(200, 200, 120)):
-	font = pygame.font.SysFont("Consolas", size)
+def getText(text, size, color=(255, 255, 255), font="Consolas"):
+	font = pygame.font.SysFont(font, size)
 	return font.render(text, True, color)
 
 class RectButton(object):
-	def __init__(self, action, look, colors, text='', actiont=None):
+	def __init__(self, screen, action, look, colors, text='', actiont=None):
+		self.screen = screen
 		self.look = look
 		self.text = text
 		self.action = action
@@ -84,9 +110,10 @@ class RectButton(object):
 		self.render()
 		if self.getPressed():
 			self.action()
-		if self.getTarget() and self.actiont != None:
+		if self.getTarget() and self.actiont != None: self.actiont()
 
 	def render(self):
+		screen = self.screen
 		if self.getPressed():
 			pygame.draw.rect(screen, self.color_p, self.look)
 		elif self.getTarget():
@@ -101,6 +128,41 @@ class RectButton(object):
 		rcy = render.get_rect().h/2
 		screen.blit(render, (lcx-rcx, lcy-rcy))
 	
+class EArrow(object):
+	def __init__(self, x, y):
+		self.pos = Vector2(x, y)
+		self.vel = Vector2(0, 0)
+		self.acc = Vector2(0, 0)
+		self.power = 0.5
+
+	def tick(self):
+		self.render()
+		self.move()
+		self.vel += self.acc
+		self.pos += self.vel
+		self.acc *= 0
+		self.vel *= 0.975
+
+	def move(self):
+		epos = p1.position
+		if epos.x + p1.size/2 > self.pos.x: self.addForce(Vector2(self.power, 0))
+		elif epos.x + p1.size/2 < self.pos.x: self.addForce(Vector2(-self.power, 0))
+
+		if epos.y + p1.size/2 > self.pos.y: self.addForce(Vector2(0, self.power))
+		elif epos.y + p1.size/2 < self.pos.y: self.addForce(Vector2(0, -self.power))
+
+
+	def addForce(self, force):
+		self.acc += force
+		return self.acc
+
+	def render(self):
+		points = [Vector2(0, -10), Vector2(5, 5), Vector2(-5, 5)]
+		angle = self.vel.angle_to(Vector2(0, 1))
+		points = [p.rotate(angle) for p in points]
+		points = [Vector2(p.x, p.y * -1) for p in points]
+		points = [Vector2(self.pos + p * 2.5) for p in points]
+		pygame.draw.polygon(screen, (255, 150, 150), points)
 
 class Bullet(object):
 	def __init__(self, x, y, direction, color, team):
@@ -151,31 +213,32 @@ class Missle(object):
 		self.vel *= 0.975
 		self.tickno += 1
 		if self.tickno > 180:
-			self.speed = 0.005
+			self.speed = 0.001
 		self.render()
 		self.move()
 			
 
 	def move(self):
-		global p1, p2
-		if p1.team != self.team:
-			self.emmypos = p1.position
-		if p2.team != self.team:
-			self.emmypos = p2.position
+		if mode == 'pvp':
+			global p1, p2
+			if p1.team != self.team:
+				self.emmypos = p1.position
+			if p2.team != self.team:
+				self.emmypos = p2.position
 
-		if self.emmypos.x > self.position.x:
-			self.addForce(Vector2(self.speed, 0))
-		elif self.emmypos.x < self.position.x:
-			self.addForce(Vector2(-self.speed, 0))
-		else:
-			pass
+			if self.emmypos.x > self.position.x:
+				self.addForce(Vector2(self.speed, 0))
+			elif self.emmypos.x < self.position.x:
+				self.addForce(Vector2(-self.speed, 0))
+			else:
+				pass
 
-		if self.emmypos.y > self.position.y:
-			self.addForce(Vector2(0, self.speed))
-		elif self.emmypos.y < self.position.y:
-			self.addForce(Vector2(0, -self.speed))
-		else:
-			pass
+			if self.emmypos.y > self.position.y:
+				self.addForce(Vector2(0, self.speed))
+			elif self.emmypos.y < self.position.y:
+				self.addForce(Vector2(0, -self.speed))
+			else:
+				pass
 
 	def render(self):
 		pygame.draw.rect(screen, self.color, self.rect)
@@ -203,21 +266,25 @@ class Player(object):
 		self._1ammoh = self.ammorectmaxh / self.ammo
 		self.ammorect = pygame.Rect(ammo[1], ammo[2], 30, self.ammo * self._1ammoh)
 
-	def __help__(self):
-		print("team is string for team identification")
-		print("controls is list of controls")
-		print("[up, down, left, right]")
-
 	def hide(self):
 		self.shown = False
 
 	def tick(self):
-		self.render()
 		self.move()
 		self.vel += self.acc
 		self.position += self.vel
 		self.acc *= 0
 		self.vel *= 0.90
+		if self.position.x < 0:
+			self.position.x = 0
+		elif self.position.x + self.size > res[0]:
+			self.position.x = res[0] - self.size
+		if self.position.y < 0:
+			self.position.y = 0
+		elif self.position.y + self.size > res[1]:
+			self.position.y = res[1] - self.size
+
+		self.render()
 		
 	def render(self):
 		if self.shown:
@@ -276,38 +343,39 @@ class Player(object):
 			if self.rect.collidepoint(b.position) and b.team != self.team:
 				return b.team, self.team
 
-
 if __name__ == "__main__":
 	setmenu()
 	btns = []
-	qrect = pygame.Rect(res[0]/2-200, res[1]/2+100, 400, 80)
-	prect = pygame.Rect(res[0]/2-200, res[1]/2-50, 400, 80)
-	btns.append(RectButton(sys.exit, qrect, ((255, 255, 255), (200, 200, 200), (100, 100, 100)), 'QUIT'))
-	btns.append(RectButton(setpvp, prect, ((255, 255, 255), (200, 200, 200), (100, 100, 100)), 'PLAY'))
+	btndat = []
+	btndat.append((pygame.Rect(res[0]/2-200, res[1]/2+200, 400, 80), sys.exit, 'Quit'))
+	btndat.append((pygame.Rect(res[0]/2-200, res[1]/2+50, 400, 80), setpvp, 'PvP'))
+	btndat.append((pygame.Rect(res[0]/2-200, res[1]/2-100, 400, 80), setsurvival, 'Survival'))
+	for r in btndat: btns.append(RectButton(screen, r[1], r[0], ([255]*3, [200]*3, [100]*3), r[2]))
 
 	while True:
 		for event in pygame.event.get():
-			if event.type == pygame.QUIT: sys.exit(0)
-			if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: setmenu()
-			if mode == 'pvp': 
-				if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE: p1.shoot()
-				if event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT: p2.shoot()
-				if event.type == pygame.KEYDOWN and event.key == pygame.K_LALT: p1.missle()
-				if event.type == pygame.KEYDOWN and event.key == pygame.K_RCTRL: p2.missle()
+			if event.type == pygame.QUIT: sys.exit(0)	
+			if event.type == pygame.KEYDOWN:
+				if mode == 'pvp' or mode == 'survival': 
+					if event.key == pygame.K_ESCAPE: setmenu()
+					if event.key == pygame.K_SPACE: p1.shoot()
+					if event.key == pygame.K_RSHIFT: p2.shoot()
+					if event.key == pygame.K_LALT: p1.missle()
+					if event.key == pygame.K_RCTRL: p2.missle()
 		if mode == 'pvp':
 			for b in bullets:
 				b.tick()
 
 			if getLoser([p1, p2]) == 'green':
 				p1.hide()
-				if loser == '': pygame.mixer.Sound('explosion.ogg').play()
-				if loser == "" or loser == "Blue": loser += "Green"
+				pygame.mixer.Sound('explosion.ogg').play()
+				loser = "Green"
 				wait_tick = tick
 				bullets = []
 			elif getLoser([p1, p2]) == 'blue':
 				p2.hide()
-				if loser == '': pygame.mixer.Sound('explosion.ogg').play()
-				if loser == "" or loser == "Green": loser += "Blue"
+				pygame.mixer.Sound('explosion.ogg').play()
+				loser = "Blue"
 				wait_tick = tick
 				bullets = []
 			if p1.ammo == 0 and p2.ammo == 0:
@@ -316,22 +384,37 @@ if __name__ == "__main__":
 				bullets = []
 
 			if loser != '':
-				writeText(loser + " lost!", 50, 30, 40)
+				r = getText(loser + " lost", 75)
+				screen.blit(r, ((res[0]/2)-r.get_rect().w/2, 10))
 			if wait_tick + 300 == tick:
 				reset()
+
+			writeText(str(wins["Blue"]), 40, 10, 150, (160, 255, 160)) # Greens wins
+			r = getText(str(wins["Green"]), 150, (160, 160, 255))
+			screen.blit(r, (res[0]-40-r.get_rect().w, 10))
+			del r
 
 			p1.tick()
 			p2.tick()
 			tick += 1
 		elif mode == 'menu':
 			for b in btns: b.tick()
-			if tick % 10 == 0: 
-				c = (random.randint(50, 200), random.randint(50, 200), random.randint(50, 200))
+			if tick % 10 == 0: c = (random.randint(50, 200), random.randint(50, 200), random.randint(50, 200))
 			r = getText("Arm Park", 100, c)
 			screen.blit(r, (res[0]/2-r.get_rect().w/2, res[1]/2-250))
+			del r
+			tick += 1
+		elif mode == 'survival':
+			p1.tick()
+			for b in bullets: b.tick()
+			for e in emmys: e.tick()
+			if tick % waves["wavesCountDown"] == 0:
+				wave()
 			tick += 1
 
-		writeText("Game by 0RD3R | v1.4.1 Python edition", res[0]-520, res[1]-25, 25)
+			print(waves)
+
+		writeText("Game by 0RD3R | v1.5.c Python edition", res[0]-520, res[1]-25, 25)
 		clock.tick(60)
 		pygame.display.update()
-		screen.fill((40, 40, 40))
+		screen.fill([40]*3)
